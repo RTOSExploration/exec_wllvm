@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+BUILD_CMD=unset
+
+usage()
+{
+  echo "Usage: genbc [-c|--command BUILD-COMMAND]"
+  exit 1
+}
+
+PARSED_ARGUMENTS=$(getopt -n genbc -o c: --long command: -- "$@")
+VALID_ARGUMENTS=$?
+if [ "$VALID_ARGUMENTS" != "0" ]; then
+  usage
+fi
+
+#echo "PARSED_ARGUMENTS is $PARSED_ARGUMENTS"
+eval set -- "$PARSED_ARGUMENTS"
+while true; do
+  case "$1" in
+    #-a | --alpha)   ALPHA=1      ; shift   ;;
+    -c | --command) BUILD_CMD="$2" ; shift 2 ;;
+    --) shift; break ;;
+    *) echo "Unexpected option: $1 - this should not happen."
+       usage ;;
+  esac
+done
+
+if [ "$BUILD_CMD" == "unset" ]; then
+  echo "BUILD-COMMAND not set"
+  usage
+fi
+#echo "BUILD_CMD: $BUILD_CMD"
+DATABASE=$1
+mkdir $DATABASE || exit 2
+
+rm -f /tmp/intercept.log
+
+export WLLVM_OUTPUT_LEVEL=INFO \
+       LLVM_COMPILER=hybrid \
+       LLVM_COMPILER_PATH=/usr/lib/llvm-14/bin
+
+LD_PRELOAD=$SCRIPT_DIR/libexec_wllvm.so $BUILD_CMD || exit 3
+
+# a.out is generated when cmake tests compiler
+for elf in `find . \( -name "*.out" -o -name "*.elf" \) ! -name "a.out" -executable`; do
+  echo ELF file $elf
+  extract-bc $elf && $LLVM_COMPILER_PATH/llvm-dis $elf.bc && \
+    cp --backup=numbered $elf.bc $elf.ll $DATABASE
+done
