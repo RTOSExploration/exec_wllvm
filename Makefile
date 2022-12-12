@@ -8,4 +8,4 @@ libexec_wllvm.so: hook.c
 	$(CC) $< $(CFLAGS) $(LDFLAGS) -o $@
 
 clean:
-	rm libexec_wllvm.so
+	rm -f libexec_wllvm.so
